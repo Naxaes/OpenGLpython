@@ -1,0 +1,34 @@
+**** RULES OF CONSISTENCY ****
+
+    1.  Matrices that contain x number of vectors of length y should be defined with row as the number of vectors and
+        column as the vector's length. This way, len(matrix) will return the number of vectors. Example:
+
+            matrix = numpy.array((x, y), order='C')
+
+    2.  Every module should define 4 globals with the following default values:
+            CHECK_ERROR      = True
+            CHECK_WARNING    = True
+            CRASH_ON_ERROR   = True
+            CRASH_ON_WARNING = False
+
+
+
+Assets - Assets should be loaded to a global array, unless they are being streamed (such as music). Entities should have
+         unsigned integers which represent the index of the asset in one of the arrays.
+
+    * Models
+    * Textures
+    * Sounds
+
+
+
+Entities:
+
+    Attributes    |  Data type  |  Dependencies   |  Mask
+                                                  |
+    location      |  vec3       |                 |  DISPLACEMENT
+    rotation      |  vec3       |  model          |  MODEL
+    scale         |  vec3       |  model          |  MODEL
+    model         |  uint       |  l, r, s        |  model
+    color         |  vec3       |  model          |  model
+    textures      |  uint       |  model

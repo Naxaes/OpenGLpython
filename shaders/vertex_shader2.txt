@@ -1,0 +1,38 @@
+#version 120
+
+attribute vec3 position;
+attribute vec3 normal;
+
+uniform mat4 transformation;
+uniform mat4 view;
+uniform mat4 projection;
+uniform vec3 light_position;
+uniform vec4 light_color;
+
+varying vec4 out_color;
+
+
+float length_squared(vec3 a, vec3 b);
+
+
+void main()
+{
+    vec4 world_position = transformation * vec4(position, 1.0);
+
+    vec3 surface_normal = (transformation * vec4(normal, 1.0)).xyz;
+    vec3 light_direction = world_position.xyz - light_position;
+    vec3 unit_normal = normalize(surface_normal);
+    vec3 unit_light_direction = normalize(light_direction);
+
+    float light_strength = 1 / length_squared(light_position, world_position.xyz);
+    float intensity = max(dot(unit_normal, unit_light_direction), 0.1);
+    out_color = light_color * intensity * light_strength;
+
+    gl_Position = projection * view * world_position;
+}
+
+
+float length_squared(vec3 a, vec3 b)
+{
+    return pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2);
+}

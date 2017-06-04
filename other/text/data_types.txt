@@ -1,0 +1,2 @@
+GLfloat = numpy.float32
+GLint = numpy.int
