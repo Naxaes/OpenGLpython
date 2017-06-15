@@ -1,15 +1,41 @@
 **** RULES OF CONSISTENCY ****
 
-    1.  Matrices that contain x number of vectors of length y should be defined with row as the number of vectors and
-        column as the vector's length. This way, len(matrix) will return the number of vectors. Example:
+    1.  Every module should define 4 globals with the following default values:
 
-            matrix = numpy.array((x, y), order='C')
-
-    2.  Every module should define 4 globals with the following default values:
             CHECK_ERROR      = True
             CHECK_WARNING    = True
             CRASH_ON_ERROR   = True
             CRASH_ON_WARNING = False
+
+    2.  All uniforms will be a numpy.ndarray. The following convention should be followed:
+
+            A  single scalar    'x'         should have shape '1'
+            A  single vector    'vecn'      should have shape 'n'         where n = {2, 3, 4}
+            A  single matrix    'matnxm'    should have shape 'n, m'      where n, m = {2, 3, 4}
+            An array of scalars 'x[i]'      should have shape 'i, 1'
+            An array of vector  'vecn[i]'   should have shape 'i, n'      where n = {2, 3, 4}
+            An array of matrix  'matnxm[i]' should have shape 'i, n, m'   where n, m = {2, 3, 4}
+
+
+There are 5 data types that can be uploaded to the shader in 5 different structures:
+
+    Data types are float, double, int, uint and bool.
+    Data structures are scalar, vector, matrix, array, struct, and others which are uploaded just with scalars.
+
+    * Scalars can be all 5 data types.
+    * Vectors can be all 5 data types and size 2, 3, 4.
+    * Matrices can only be float (in GLSL 2.1) and have rows/cols of size 2, 3, 4.
+
+    * Arrays can contain all data types and data structures of any size, but only one per array.
+    * Structs can contain all data types and data structures of any size, there's no limit per struct.
+
+    Scalars, vectors, array of scalars or array of vectors can be uploaded with glUniform{1, 2, 3, 4}{f, d, i, ui, b}v.
+
+    Matrices needs to be uploaded using glUniformMatrix{n, nxm}. Arrays of matrices can be iterated over.
+
+    Every field in a struct must be uploaded separately. That means we have to identify the fields and send them to the
+    right function. Arrays of structs should be able to be iterated over.
+
 
 
 

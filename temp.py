@@ -1,4 +1,5 @@
 import numpy
+from pyglet.gl import GLfloat, GLuint, GLint
 
 
 class Material:
@@ -6,10 +7,10 @@ class Material:
     __slots__ = ('ambient', 'diffuse', 'specular', 'shininess')
 
     def __init__(self, ambient, diffuse, specular, shininess):
-        self.ambient   = numpy.array(ambient,  dtype=numpy.float32, order='C')
-        self.diffuse   = numpy.array(diffuse,  dtype=numpy.float32, order='C')
-        self.specular  = numpy.array(specular, dtype=numpy.float32, order='C')
-        self.shininess = numpy.float32(shininess)
+        self.ambient   = numpy.array(ambient,  dtype=GLfloat, order='C')
+        self.diffuse   = numpy.array(diffuse,  dtype=GLfloat, order='C')
+        self.specular  = numpy.array(specular, dtype=GLfloat, order='C')
+        self.shininess = numpy.array(shininess, dtype=GLfloat)
 
 
 class TexturedMaterial:
@@ -17,10 +18,10 @@ class TexturedMaterial:
     __slots__ = ('diffuse', 'specular', 'emission', 'shininess')
 
     def __init__(self, shininess, diffuse=0, specular=1, emission=2):
-        self.diffuse   = numpy.uint32(diffuse)  # Defines the texture unit.
-        self.specular  = numpy.uint32(specular)
-        self.emission  = numpy.uint32(emission)
-        self.shininess = numpy.float32(shininess)
+        self.diffuse   = numpy.array(diffuse, dtype=GLint)  # Defines the texture unit.
+        self.specular  = numpy.array(specular, dtype=GLint)
+        self.emission  = numpy.array(emission, dtype=GLint)
+        self.shininess = numpy.array(shininess, dtype=GLfloat)
 
 
 class Light:
@@ -33,12 +34,12 @@ class Light:
         self.specular = numpy.array(specular, dtype=numpy.float32, order='C')
         self.position = numpy.array(position, dtype=numpy.float32, order='C')
 
-        self.inner_angle = numpy.float32(inner_angle)
-        self.outer_angle = numpy.float32(outer_angle)
+        self.inner_angle = numpy.array(inner_angle, dtype=GLfloat)
+        self.outer_angle = numpy.array(outer_angle, dtype=GLfloat)
 
-        self.constant  = numpy.float32(constant)
-        self.linear    = numpy.float32(linear)
-        self.quadratic = numpy.float32(quadratic)
+        self.constant  = numpy.array(constant, dtype=GLfloat)
+        self.linear    = numpy.array(linear, dtype=GLfloat)
+        self.quadratic = numpy.array(quadratic, dtype=GLfloat)
 
 
 class PointLight:
@@ -51,10 +52,9 @@ class PointLight:
         self.specular = numpy.array(specular, dtype=numpy.float32, order='C')
         self.position = numpy.array(position, dtype=numpy.float32, order='C')
 
-        self.constant  = numpy.float32(constant)
-        self.linear    = numpy.float32(linear)
-        self.quadratic = numpy.float32(quadratic)
-
+        self.constant  = numpy.array(constant, dtype=GLfloat)
+        self.linear    = numpy.array(linear, dtype=GLfloat)
+        self.quadratic = numpy.array(quadratic, dtype=GLfloat)
 
 class SpotLight:
 
@@ -66,12 +66,12 @@ class SpotLight:
         self.specular = numpy.array(specular, dtype=numpy.float32, order='C')
         self.position = numpy.array(position, dtype=numpy.float32, order='C')
 
-        self.inner_angle = numpy.float32(inner_angle)
-        self.outer_angle = numpy.float32(outer_angle)
+        self.inner_angle = numpy.array(inner_angle, dtype=GLfloat)
+        self.outer_angle = numpy.array(outer_angle, dtype=GLfloat)
 
-        self.constant  = numpy.float32(constant)
-        self.linear    = numpy.float32(linear)
-        self.quadratic = numpy.float32(quadratic)
+        self.constant  = numpy.array(constant, dtype=GLfloat)
+        self.linear    = numpy.array(linear, dtype=GLfloat)
+        self.quadratic = numpy.array(quadratic, dtype=GLfloat)
 
 
 def uniform_struct(struct_name, uniform):

@@ -1,4 +1,4 @@
-from shader import Program, VertexShader, FragmentShader
+from temp_shader import Program, VertexShader, FragmentShader
 from assets import models, textures
 from entity import World
 from mathematics import create_transformation_matrix, create_perspective_matrix
@@ -38,9 +38,11 @@ lamp_shader = Program(
 
 
 world = World(100)
-for i in range(10):
+for i in range(5):
     location = random(size=3) * 10 + -random(size=3) * 10
-    world.create_object(mask=World.COMPONENT_SPRITE, model=0, location=location, diffuse=2, specular=4, emission=3)
+    rotation = random(size=3) * 360
+    world.create_object(mask=World.COMPONENT_SPRITE, model=0,
+                        location=location, rotation=rotation, diffuse=2, specular=4, emission=3)
 lights = [
     world.create_object(mask=World.COMPONENT_LIGHT, model=1, location=((-1)**x, 1, -x), scale=(0.1, 0.1, 0.1)) for x in range(2, 6)
 ]
@@ -70,7 +72,6 @@ def on_draw():
         # Upload uniforms.
         object_shader.load_uniform_matrix(create_transformation_matrix(*camera_location, 0, 0, 0, 1, 1, 1), name='view')
         for index, light_struct in enumerate(light_structs):
-            # print(*('light[{}]'.format(index) + '.' + attribute_name + ' = ' + str(getattr(light_struct, attribute_name)) for attribute_name in light_struct.__slots__))
             object_shader.load_uniform_struct(light_struct, name='light[{}]'.format(index))
         object_shader.load_uniform_struct(material_struct, name='material')
         object_shader.load_uniform_floats(time, name='time')

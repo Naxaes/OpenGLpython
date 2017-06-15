@@ -166,7 +166,7 @@ glGenBuffers(1, texture_coordinates_vbo)
 glBindBuffer(GL_ARRAY_BUFFER, texture_coordinates_vbo)
 glBufferData(GL_ARRAY_BUFFER, len(texture_coordinates) * sizeof(c_float), (c_float * len(texture_coordinates))(*texture_coordinates), GL_STATIC_DRAW)
 
-# Associate vertex attribute 1 with the bound (our color vbo) above.
+# Associate vertex attribute 2 with the bound vbo (our texture_coordinates vbo) above.
 glEnableVertexAttribArray(texture_coordinate_index)
 glVertexAttribPointer(texture_coordinate_index, 2, GL_FLOAT, GL_FALSE, 0, 0)  # CHANGED (to 2 instead of 3).
 

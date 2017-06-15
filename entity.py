@@ -99,10 +99,10 @@ class World:
         Returns:
 
         """
-        attribute_table = shader.attribute_table
-        position_location = attribute_table['position']
-        texture_location = attribute_table['texture_coordinate']
-        normal_location = attribute_table['normal']
+        attribute_location = shader.attribute_location
+        position_location = attribute_location['position']
+        texture_location = attribute_location['texture_coordinate']
+        normal_location = attribute_location['normal']
 
         for entity in numpy.where((self.mask & World.COMPONENT_SPRITE) == World.COMPONENT_SPRITE)[0]:
             model = models[self.model[entity]]
@@ -158,8 +158,8 @@ class World:
         Returns:
 
         """
-        attribute_table = shader.attribute_table
-        position_location = attribute_table['position']
+        attribute_location = shader.attribute_location
+        position_location = attribute_location['position']
 
         for entity in numpy.where(self.mask == World.COMPONENT_LIGHT)[0]:
 
