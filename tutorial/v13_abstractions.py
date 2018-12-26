@@ -66,7 +66,7 @@ class Model:
         for index, vbo in enumerate(self.vbos):
             vbo.enable(index=index)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.index_vbo)
-        Model.bound = self
+        Model.bound = self  # Safety.
 
     def disable(self):
         for index in range(len(self.vbos)):
