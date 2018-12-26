@@ -1,39 +1,18 @@
 #version 120
 
-attribute vec3 position;
+attribute vec3 location;
 attribute vec3 normal;
-attribute vec2 texture_coordinate;
+attribute vec3 texture_coordinate;
 
 uniform mat4 transformation;
 uniform mat4 view;
 uniform mat4 projection;
-uniform vec3 light_position;
 
 varying vec3 surface_normal;
-varying vec3 light_direction;
-varying float light_strength;
-varying vec2 pass_texture_coordinate;
-
-
-float length_squared(vec3 a, vec3 b);
-
 
 void main()
 {
-    vec4 world_position = transformation * vec4(position, 1.0);
-
+    vec4 world_position = transformation * vec4(location, 1.0);
     surface_normal = (transformation * vec4(normal, 1.0)).xyz;
-    light_direction = world_position.xyz - light_position;
-
-    light_strength = 1 / length_squared(light_position, world_position.xyz);
-
-    pass_texture_coordinate = texture_coordinate;
-
     gl_Position = projection * view * world_position;
-}
-
-
-float length_squared(vec3 a, vec3 b)
-{
-    return pow(a.x - b.x, 2) + pow(a.y - b.y, 2) + pow(a.z - b.z, 2);
 }

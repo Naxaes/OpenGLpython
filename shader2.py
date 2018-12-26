@@ -21,36 +21,10 @@ from c_bindings import c_string, c_string_array, c_array, byref, create_string_b
 from temporary import table, temp
 import sys
 import numpy
-from glsl import Mat4
-
-"""
-There are 5 data types that can be uploaded to the shader in 5 different structures:
-
-    Data types are float, double, int, uint and bool.
-    Data structures are scalar, vector, matrix, array, struct, and others which are uploaded just with scalars.
-
-    * Scalars can be all 5 data types.
-    * Vectors can be all 5 data types and size 2, 3, 4.
-    * Matrices can only be float (in GLSL 2.1) and have rows/cols of size 2, 3, 4.
-
-    * Arrays can contain all data types and data structures of any size, but only one per array.
-    * Structs can contain all data types and data structures of any size, there's no limit per struct.
-
-    Scalars, vectors, array of scalars or array of vectors can be uploaded with glUniform{1, 2, 3, 4}{f, d, i, ui, b}v.
-
-    Matrices needs to be uploaded using glUniformMatrix{n, nxm}. Arrays of matrices can be iterated over.
-
-    Every field in a struct must be uploaded separately. That means we have to identify the fields and send them to the
-    right function. Arrays of structs should be able to be iterated over.
-
-"""
-
-# from pyglet.gl.lib import link_GL, link_WGL # WGLFunctionProxy
-# except for bools which use i and opaques which use 1i
 
 CHECK_ERROR = True
 CHECK_WARNING = True
-CRASH_ON_ERROR = False
+CRASH_ON_ERROR = True
 CRASH_ON_WARNING = False
 
 
@@ -61,7 +35,7 @@ class Shader(GLuint):
     Shader is a static object. Once created it cannot be changed. Instead you need to delete it and create a new.
     """
 
-    def __init__(self, shader_type, *, source=None, path=None):
+    def __init__(self, shader_type, source=None, path=None):
         """
         Creates a shader object from either a source string or a text file at path.
 
@@ -70,7 +44,7 @@ class Shader(GLuint):
             source: String of the code to use for the shader.
             path: Path to a text file containing the code for the shader.
         """
-        assert source is not None or path is not None, "The source or a path to the source is missing."
+        assert source is not path, "The source or a path to the source is missing."
 
         if path:
             source = open(path).read()
@@ -167,7 +141,7 @@ def debug_shader(shader: Shader):
 
 class Program(GLuint):
 
-    def __init__(self, vertex_shader: Shader, fragment_shader: Shader, attributes=(), uniforms=()):
+    def __init__(self, vertex_shader: Shader, fragment_shader: Shader, attributes=(), uniforms=None):
         """
         The process of creating a shader can be divided into 6 steps:
 
@@ -179,11 +153,14 @@ class Program(GLuint):
             6. Bind uniforms.
 
         Args:
-            vertex_shader: 
-            fragment_shader: 
-            attributes: 
-            uniforms: 
+            vertex_shader:
+            fragment_shader:
+            attributes:
+            uniforms:  A dictionary with the names of the uniform as the key, and the uniform (glsl value) as value.
         """
+
+        if uniforms is None:
+            uniforms = {}
 
         handle = -1
         attribute_location = {}
@@ -208,14 +185,11 @@ class Program(GLuint):
         self.fragment_shader = fragment_shader
         self.attribute_location = attribute_location
         self.uniform_location = uniform_location
-        # self.uniforms = uniforms
+        self.uniforms = uniforms
 
         if CHECK_ERROR:
             debug_program(self)
             # scan(self)
-
-        # for uniform in uniforms:
-        #     self.set_uniform_matrix(uniform, uniforms[uniform])
 
     def __repr__(self):
         return 'Shader program (ID=%s)' % self.value
@@ -226,20 +200,15 @@ class Program(GLuint):
     def __exit__(self, exc_type, exc_val, exc_tb):
         glUseProgram(0)
 
-    # def set_uniform_matrix(self, name, matrix):
-    #     assert isinstance(matrix, Mat4)
-    #     self.uniforms[name] = matrix
-    #
-    #     print(self.uniforms[name])
-    #     location = self.uniform_location[name]
-    #     glUniformMatrix4fv(location, 1, GL_TRUE, self.uniforms[name])
-
+    def prepare_load_uniform(self, uniform, attribute=None):
+        if attribute:
+            self._uniforms_to_load.add(uniform)
 
     def load_uniform_matrix(self, matrix, *, name=None):
         """
 
         Args:
-            matrix: A numpy array. 
+            matrix: A numpy array.
             name: The variable name of the uniform.
 
         Returns:
@@ -267,8 +236,8 @@ class Program(GLuint):
         Uploads float values to a scalar or vector in the shader program.
 
         Args:
-            *values: 
-            name: 
+            *values:
+            name:
 
         Returns:
 
@@ -296,8 +265,8 @@ class Program(GLuint):
         Uploads float values to a scalar or vector in the shader program.
 
         Args:
-            *values: 
-            name: 
+            *values:
+            name:
 
         Returns:
 
@@ -320,8 +289,8 @@ class Program(GLuint):
         Uploads float values to a scalar or vector in the shader program.
 
         Args:
-            *values: 
-            name: 
+            *values:
+            name:
 
         Returns:
 
@@ -342,11 +311,11 @@ class Program(GLuint):
 
     def load_uniform_struct(self, struct, name=None):
         """
-        Upload a struct to the shader. 
+        Upload a struct to the shader.
 
         Args:
-            struct: 
-            name: 
+            struct:
+            name:
 
         Returns:
 
@@ -409,6 +378,38 @@ class Program(GLuint):
         data = array.ctypes.data_as(POINTER(GLfloat))
         func(location, len(data), data)
 
+
+def get_uniform_data(program):
+    """
+    Args:
+        program:
+
+    Returns:
+
+    """
+    uniforms = {}
+
+    count = pointer(GLint())
+    buffer_size = GLsizei(32)
+    length = GLsizei()
+    size = GLint()
+    data_type = GLenum()
+    uniform_name = c_string('', size=buffer_size.value)
+
+    glGetProgramiv(program, GL_ACTIVE_UNIFORMS, count)
+
+    for i in range(count.contents.value):
+        glGetActiveUniform(program, GLuint(i), buffer_size, length, size, data_type, uniform_name)
+        uniform_name_ = uniform_name.value.decode('utf-8')
+        data_type_string = temp[data_type.value]
+        uniforms[uniform_name_] = {
+            'dtype'   : table[data_type_string]['dtype'], 'index': i, 'size': size.value, 'value': None,
+            'location': glGetUniformLocation(program, uniform_name), 'function': table[data_type_string]['function'],
+        }
+        print(uniform_name_, uniforms[uniform_name_])
+    return uniforms
+
+
 def program_status(program: GLuint, status_type: int) -> int:
     """
 
@@ -428,6 +429,7 @@ def program_status(program: GLuint, status_type: int) -> int:
     status = GLint()
     glGetProgramiv(program, status_type, byref(status))
     return status.value
+
 
 def debug_program(program: Program):
     """
@@ -472,49 +474,16 @@ def debug_program(program: Program):
         sys.exit(-1)
 
 
-
-# def get_uniform_data(program):
-#     """
-#     Args:
-#         program:
-#
-#     Returns:
-#
-#     """
-#     uniforms = {}
-#
-#     count = pointer(GLint())
-#     buffer_size = GLsizei(32)
-#     length = GLsizei()
-#     size = GLint()
-#     data_type = GLenum()
-#     uniform_name = c_string('', size=buffer_size.value)
-#
-#     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, count)
-#
-#     for i in range(count.contents.value):
-#         glGetActiveUniform(program, GLuint(i), buffer_size, length, size, data_type, uniform_name)
-#         uniform_name_ = uniform_name.value.decode('utf-8')
-#         data_type_string = temp[data_type.value]
-#         uniforms[uniform_name_] = {
-#             'dtype'   : table[data_type_string]['dtype'], 'index': i, 'size': size.value, 'value': None,
-#             'location': glGetUniformLocation(program, uniform_name), 'function': table[data_type_string]['function'],
-#         }
-#         print(uniform_name_, uniforms[uniform_name_])
-#     return uniforms
-
-
-
 def scan(program: Program):
     """
-    We scan through the vertex shader and the fragment shader to see if the attributes and uniforms uploaded to the 
+    We scan through the vertex shader and the fragment shader to see if the attributes and uniforms uploaded to the
     program match those in the shaders.
 
     All attributes starts with the keyword `attribute` at the lowest indention level. Some attributes are not loaded to
     the program, which are the ones that start with the `gl_` prefix.
 
     Uniforms starts with the keyword `uniform` at the lowest indention level. Uniforms are more flexible than attributes
-    since they can be basic data types, structs, array or array of structs. There are also predefined uniforms 
+    since they can be basic data types, structs, array or array of structs. There are also predefined uniforms
     `sampler1D`, `sampler2D` och `sampler3D`.
 
 
@@ -525,13 +494,219 @@ def scan(program: Program):
         sampler
 
     Args:
-        program: 
+        program:
 
     Returns:
         None
     """
-    source = program.vertex_shader.source + program.fragment_shader.source
+    # TODO Tidy up function.
+    # TODO Maybe separate into warnings and errors?
 
-    for character in source:
-        pass
+    struct_members = {}
+    attributes = set()
+    uniforms = set()
+
+    source = program.vertex_shader.source.split()
+    index = 0
+    while index < len(source):
+        if source[index] == 'struct':
+            index += 1
+            struct_name = source[index].replace('{', '')
+            struct_members[struct_name] = []
+            while not '};' in source[index]:
+                if source[index] in GLSL_DATA_TYPES:
+                    index += 1
+                    if '[' in source[index]:
+                        temp = []
+                        for character in source[index]:
+                            if character == '[':
+                                break
+                            else:
+                                temp.append(character)
+                        member = ''.join(temp)
+                    else:
+                        member = source[index].replace(';', '')
+                    struct_members[struct_name].append(member)
+                index += 1
+        elif source[index] == 'attribute':
+            index += 2
+            attributes.add(source[index].replace(';', ''))
+        elif source[index] == 'uniform':
+            index += 1
+            if source[index] in struct_members:
+                struct = source[index]
+                index += 1
+                if '[' in source[index]:
+                    temp = []
+                    for character in source[index]:
+                        if character == '[':
+                            break
+                        else:
+                            temp.append(character)
+                    name = ''.join(temp)
+                else:
+                    name = source[index].replace(';', '')
+                for member in struct_members[struct]:
+                    uniforms.add(name + '.' + member)
+        index += 1
+
+    source = program.fragment_shader.source.split()
+    index = 0
+    while index < len(source):
+        if source[index] == 'struct':
+            index += 1
+            struct_name = source[index].replace('{', '')
+            struct_members[struct_name] = []
+            while not '};' in source[index]:
+                if source[index] in GLSL_DATA_TYPES:
+                    index += 1
+                    if '[' in source[index]:
+                        temp = []
+                        for character in source[index]:
+                            if character == '[':
+                                break
+                            else:
+                                temp.append(character)
+                        member = ''.join(temp)
+                    else:
+                        member = source[index].replace(';', '')
+                    struct_members[struct_name].append(member)
+                index += 1
+        elif source[index] == 'uniform':
+            index += 1
+            if source[index] in struct_members:
+                struct = source[index]
+                index += 1
+                if '[' in source[index]:
+                    temp = []
+                    for character in source[index]:
+                        if character == '[':
+                            break
+                        else:
+                            temp.append(character)
+                    name = ''.join(temp)
+                else:
+                    name = source[index].replace(';', '')
+                for member in struct_members[struct]:
+                    uniforms.add(name + '.' + member)
+        index += 1
+
+    template = """
+{name} uploaded to the program do not match those used the shaders.
+
+    {name} in the program: {program_attributes}
+    {name} in the shaders: {attributes}
+"""
+
+    error = False
+
+    if set(attributes) != set(program.attribute_data):
+        print(
+            template.format(
+                name='Attributes',
+                program_attributes=', '.join(sorted(program.attribute_data.keys())),
+                attributes=', '.join(sorted(attributes))
+            ),
+            file=sys.stderr
+        )
+        error = True
+    if set(uniforms) != set(program.uniform_data):
+        print(
+            template.format(
+                name='Uniforms',
+                program_attributes=', '.join(sorted(program.uniform_data)),
+                attributes=', '.join(sorted(uniforms))
+            ),
+            file=sys.stderr
+        )
+        error = True
+
+    if error and CRASH_ON_ERROR:
+        sys.exit(-1)
+
+
+
+
+
+
+
+
+
+struct_PointLight = """
+struct PointLight {
+    vec3 position;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
+};
+"""
+struct_SpotLight = """
+struct SpotLight {
+    vec3 position;
+    vec3 direction;
+
+    float inner_angle;
+    float outer_angle;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
+};
+"""
+struct_SunLight = """
+struct SunLight {
+    vec3 direction;
+
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+"""
+struct_Material = """
+struct Material {
+    sampler2D diffuse;
+    sampler2D specular;
+    sampler2D emission;
+    float shininess;
+};
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

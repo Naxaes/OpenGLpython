@@ -47,6 +47,25 @@ Assets - Assets should be loaded to a global array, unless they are being stream
     * Sounds
 
 
+Component data storage
+
+    By arranging every attribute in their own C-contiguous array it'll improve cache coherency.
+    The memory for the component system is:
+
+        memory size = attributes * bit size * entities
+
+        Some examples:
+            memory size = 32  * 32 * 100,000 = 102,400,000 bits = 12,800,000  bytes = 12.8  Mb
+            memory size = 64  * 32 * 100,000 = 204,800,000 bits = 25,600,000  bytes = 25.6  Mb
+            memory size = 128 * 32 * 100,000 = 409,600,000 bits = 51,200,000  bytes = 51.2  Mb
+            memory size = 256 * 32 * 100,000 = 819,200,000 bits = 102,400,000 bytes = 102.4 Mb
+
+        Memory references:
+            256 x 256 png single color = 103 - 1,189 bytes = 0.1 - 1.2 kb
+            256 x 256 png colored noise = 144,318 bytes = 144.3 kb
+
+
+
 
 Entities:
 
@@ -58,3 +77,4 @@ Entities:
     model         |  uint       |  l, r, s        |  model
     color         |  vec3       |  model          |  model
     textures      |  uint       |  model
+

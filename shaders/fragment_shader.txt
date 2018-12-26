@@ -1,23 +1,14 @@
 #version 120
 
 varying vec3 surface_normal;
-varying vec3 light_direction;
-varying vec2 pass_texture_coordinate;
-varying float light_strength;
-
-
-uniform vec4 light_color;
-uniform sampler2D texture_sampler;
 
 void main()
 {
-    // Normalization needs to be done in the fragment shader due to interpolation.
     vec3 unit_normal = normalize(surface_normal);
-    vec3 unit_light_direction = normalize(light_direction);
 
-    float intensity = max(dot(unit_normal, unit_light_direction), 0.1);
-    vec4 diffuse = light_color * intensity * light_strength;
+    float intensity = max(dot(unit_normal, vec3(0, 0, -1)), 0.1);
+    vec4 diffuse = vec4(1.0, 1.0, 1.0, 1.0) * intensity;
 
-    gl_FragColor = texture2D(texture_sampler, pass_texture_coordinate) * diffuse;
+    gl_FragColor = diffuse;
 }
 

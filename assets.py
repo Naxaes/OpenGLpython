@@ -1,6 +1,6 @@
 import os
 import pyglet
-from vbo import load_model
+from vbo import load_model, create_square
 
 join_path = os.path.join
 
@@ -30,3 +30,6 @@ textures.extend(
 sounds = [
 
 ]
+
+
+models.append(create_square((-10, -10, -10), (-10, -10, 10), (10, -10, -10), (10, -10, 10), (0, 1, 0)))

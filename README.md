@@ -1,0 +1,1 @@
+Fooling around with Python, pyglet and OpenGL. Check out tutorial for working step by step examples. The rest is most likely broken.

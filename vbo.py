@@ -97,14 +97,14 @@ class VAO:
         glBindBuffer(GL_ARRAY_BUFFER, 0)
 
 
-def load_model(path: str, normals=False, texture_coordinates=False) -> VAO:
+def load_model(path: str, add_normals=True, add_texture_coordinates=True) -> VAO:
     """
     Loads a obj-file to a VAO (Vertex Array Object).
 
     Args:
         path: Path to the obj file.
-        normals: True if VAO should contain normals.
-        texture_coordinates: True if VAO should contain texture coordinates.
+        add_normals: True if VAO should contain normals.
+        add_texture_coordinates: True if VAO should contain texture coordinates.
 
     Returns:
         VAO.
@@ -130,13 +130,13 @@ def load_model(path: str, normals=False, texture_coordinates=False) -> VAO:
 
 
         while not line.startswith('vn'):
-            if line.startswith('vt'):
+            if line.startswith('vt') and add_texture_coordinates:
                 _, u, t = line.split()
                 texture_coordinates.append((float(u), float(t)))
             line = text_file.readline()
 
         while not line.startswith('f'):
-            if line.startswith('vn'):
+            if line.startswith('vn') and add_normals:
                 _, x, y, z = line.split()
                 normals.append((float(x), float(y), float(z)))
             line = text_file.readline()
@@ -163,8 +163,36 @@ def load_model(path: str, normals=False, texture_coordinates=False) -> VAO:
             line = text_file.readline()
 
     vao = VAO(
-        indexed_vbo=IndexedVBO(indices), position=VBO(sorted_vertices),
+        indexed_vbo=IndexedVBO(indices), location=VBO(sorted_vertices),
         texture_coordinate=VBO(sorted_texture_coordinates), normal=VBO(sorted_normals)
     )
     return vao
 
+
+def create_square(topleft, bottomleft, topright, bottomright, normal):
+    locations = [
+        *topleft,
+        *bottomleft,
+        *bottomright,
+        *topright
+    ]
+    indices = [
+        0, 1, 3,
+        3, 1, 2,
+    ]
+    texture_coordinates = [
+        0, 0,
+        0, 1,
+        1, 1,
+        1, 0
+    ]
+    normals = [
+        *normal,
+        *normal,
+        *normal,
+        *normal
+    ]
+    return VAO(
+        indexed_vbo=IndexedVBO(indices), location=VBO(locations),
+        texture_coordinate=VBO(texture_coordinates), normal=VBO(normals)
+    )

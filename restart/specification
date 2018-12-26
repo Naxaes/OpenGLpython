@@ -1,0 +1,13 @@
+
+
+Rendering is done in three steps:
+    1. Choose shader.
+    2. Choose model.
+    3. Choose texture.
+
+Thus, entities needs to be sorted based on three categories:
+    * Shader    - The shader that's going to render the entity.
+    * Model     - The model that's going to be rendered by the shader.
+    * Textures  - The textures of the model being rendered.
+
+It should be trivial to get all entities for a specific shader/model/texture.
