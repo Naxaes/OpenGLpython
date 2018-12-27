@@ -392,21 +392,40 @@ def get_all_entities(mapping):
 
 @window.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
+    entity = all_entities[entity_selected]  # CHANGED
+    if isinstance(entity, list):  # NEW - Quick hack for now until we create better data structure.
+        transform = entity[0]
+    else:
+        transform = entity
     if buttons == mouse.LEFT:
-        camera.location[0] += dx / 250
-        camera.location[1] += dy / 250
+        transform.location[0] += dx / 250
+        transform.location[1] += dy / 250
     elif buttons == mouse.MIDDLE:  # Scroll button.
-        camera.scale[0] += dx / 250
-        camera.scale[1] += dy / 250
+        transform.scale[0] += dx / 250
+        transform.scale[1] += dy / 250
     elif buttons == mouse.RIGHT:
-        camera.rotation[1] += dx / 250
-        camera.rotation[0] -= dy / 250
+        transform.rotation[1] += dx / 250
+        transform.rotation[0] -= dy / 250
 
 
 @window.event
 def on_mouse_scroll(x, y, scroll_x, scroll_y):
-    camera.location[2] -= scroll_y / 10
-    camera.location[0] += scroll_x / 10
+    entity = all_entities[entity_selected]  # CHANGED
+    if isinstance(entity, list):  # NEW - Quick hack for now until we create better data structure.
+        transform = entity[0]
+    else:
+        transform = entity
+    transform.location[2] -= scroll_y / 10
+    transform.location[0] += scroll_x / 10
+
+
+@window.event
+def on_key_press(symbol, modifiers):
+    global entity_selected
+    if key.LEFT == symbol:
+        entity_selected = (entity_selected - 1) % len(all_entities)
+    elif key.RIGHT == symbol:
+        entity_selected = (entity_selected + 1) % len(all_entities)
 
 
 # CHANGED
@@ -646,5 +665,8 @@ lights = {  # lights have no material but instead has two extra entity attribute
 perspective_matrix = create_perspective_matrix(60, window.width / window.height, 0.1, 100)
 camera = Transform(location=[0, 0, -10], rotation=[0, 0, 0], scale=[1, 1, 1])  # CHANGED
 
+
+entity_selected = 0
+all_entities = get_all_entities(entities) + get_all_entities(lights) + [camera]
 
 pyglet.app.run()
