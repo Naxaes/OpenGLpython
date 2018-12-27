@@ -292,6 +292,7 @@ def load_texture(path, min_filter=GL_LINEAR, max_filter=GL_LINEAR, wrap_s=GL_CLA
     return texture
 
 
+# NEW - A bit hacky since we don't have a proper data structure for entities yet.
 def get_all_entities(mapping):
     entities = []
     if isinstance(mapping, list):
@@ -301,12 +302,13 @@ def get_all_entities(mapping):
             entities.extend(get_all_entities(x))
         return entities
     else:
-        assert False
+        raise TypeError("'mapping' is not a valid type.")  # This should never happen.
 
 
 @window.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-    location, rotation, scale = camera
+    # Using *ignore for lights, as they have more than 3 attributes.
+    location, rotation, scale, *ignore = all_entities[entity_selected]  # CHANGED
     if buttons == mouse.LEFT:
         location[0] += dx / 250
         location[1] += dy / 250
@@ -320,15 +322,24 @@ def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 
 @window.event
 def on_mouse_scroll(x, y, scroll_x, scroll_y):
-    location, rotation, scale = camera
+    # Using *ignore for lights, as they have more than 3 attributes.
+    location, rotation, scale, *ignore = all_entities[entity_selected]  # CHANGED
     location[2] -= scroll_y / 10
     location[0] += scroll_x / 10
 
 
 @window.event
+def on_key_press(symbol, modifiers):
+    global entity_selected
+    if key.LEFT == symbol:
+        entity_selected = (entity_selected - 1) % len(all_entities)  # CHANGED
+    elif key.RIGHT == symbol:
+        entity_selected = (entity_selected + 1) % len(all_entities)  # CHANGED
+
+
+@window.event
 def on_draw():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-
 
     # Light shader
     glUseProgram(light_program)
@@ -425,7 +436,6 @@ def on_draw():
     glDisableVertexAttribArray(0)
     glDisableVertexAttribArray(1)
     glDisableVertexAttribArray(2)
-
 
 
 # Create shaders.
@@ -607,5 +617,8 @@ lights = {  # lights have no material but instead has two extra entity attribute
 
 perspective_matrix = create_perspective_matrix(60, window.width / window.height, 0.1, 100)
 camera = [[0, 0, -10], [0, 0, 0], [1, 1, 1]]
+
+entity_selected = 0
+all_entities = get_all_entities(entities) + get_all_entities(lights) + [camera]  # NEW
 
 pyglet.app.run()
