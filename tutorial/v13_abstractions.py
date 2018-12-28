@@ -14,7 +14,7 @@ glCullFace(GL_BACK)
 # NEW
 class Shader:
 
-    bound = None
+    bound = None  # This is okay if we assume we're only going to need one OpenGL context.
 
     def __init__(self, sources, attributes, uniforms):
         self.id, self.uniform = create_shader_program(sources, attributes, uniforms)
@@ -55,7 +55,7 @@ class VBO:
 # NEW
 class Model:
 
-    bound = None
+    bound = None  # This is okay if we assume we're only going to need one OpenGL context.
 
     def __init__(self, vbos, indexed_vbo, count):
         self.vbos = vbos

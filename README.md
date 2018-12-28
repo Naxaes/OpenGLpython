@@ -1,1 +1,3 @@
 Fooling around with Python, pyglet and OpenGL. Check out tutorial for working step by step examples. The rest is most likely broken.
+
+Documentation for pyglet: http://www.academia.edu/31359821/pyglet_Documentation_Release_1.2.4
