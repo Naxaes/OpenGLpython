@@ -1,18 +1,17 @@
-from shader import Program, VertexShader, FragmentShader
+import pyglet
 from assets import models, textures
 from entity import World
-from mathematics import create_transformation_matrix, create_perspective_matrix, sin, cos, pi
-from pyglet.window import key, mouse, Window
+from numpy.random import random
 from pyglet.gl import (
     glClear, glClearColor, glEnable, glCullFace,
     GL_DEPTH_BUFFER_BIT, GL_COLOR_BUFFER_BIT, GL_DEPTH_TEST, GL_CULL_FACE, GL_BACK
 )
+from pyglet.window import key, mouse, Window
+from shader import Program, VertexShader, FragmentShader
 
-import pyglet
-from uniforms import TexturedMaterial, PointLight, SpotLight, SunLight, uniform_struct, uniform_struct_array
-from numpy.random import random
-from glsl import Vec4
-
+from other.old_stuff.mathematics import create_transformation_matrix, create_perspective_matrix, sin, cos, pi
+from other.old_stuff.uniforms import TexturedMaterial, PointLight, SpotLight, SunLight, uniform_struct, \
+    uniform_struct_array
 
 # All calls to OpenGL functions must happen after we've created the context!
 window = Window(width=1024, height=1024)

@@ -1,6 +1,7 @@
 import unittest
-from glsl2 import *
 from itertools import combinations_with_replacement
+
+from other.old_stuff.glsl2 import *
 
 
 class TestGLSL(unittest.TestCase):

@@ -1,6 +1,8 @@
 import os
+
 import pyglet
-from vbo import load_model, create_square
+
+from other.old_stuff.vbo import load_model, create_square
 
 join_path = os.path.join
 

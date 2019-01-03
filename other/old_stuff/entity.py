@@ -1,15 +1,15 @@
-from mathematics import create_transformation_matrix
-from glsl import *
 import numpy
+from glsl import *
 from pyglet.gl import (
     glBindBuffer, glEnableVertexAttribArray, glVertexAttribPointer, glDrawElements, glDisableVertexAttribArray,
     glActiveTexture, glBindTexture,
-    
+
     GL_ELEMENT_ARRAY_BUFFER, GL_ARRAY_BUFFER, GL_TEXTURE0, GL_TEXTURE_2D,
     GL_FLOAT, GL_FALSE, GL_TRIANGLES, GL_UNSIGNED_INT,
 
-    GLfloat, GLuint, GLint, GLboolean,
 )
+
+from other.old_stuff.mathematics import create_transformation_matrix
 
 
 # from collections import namedtuple

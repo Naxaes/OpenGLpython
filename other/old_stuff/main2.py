@@ -1,17 +1,17 @@
-from shader import Program, VertexShader, FragmentShader
-from assets import models, textures
-from entity import Entity, draw_entities, draw_lights, update_entities
-from mathematics import create_transformation_matrix, create_perspective_matrix, sin, cos, pi
-from pyglet.window import key, mouse, Window
+from collections import OrderedDict
+
+import pyglet
+from assets import models
+from entity import Entity, draw_entities
+from glsl import *
 from pyglet.gl import (
     glClear, glClearColor, glEnable, glCullFace,
     GL_DEPTH_BUFFER_BIT, GL_COLOR_BUFFER_BIT, GL_DEPTH_TEST, GL_CULL_FACE, GL_BACK
 )
+from pyglet.window import key, mouse, Window
 
-import pyglet
-from glsl import *
-from collections import OrderedDict
-
+from other.old_stuff.mathematics import create_perspective_matrix
+from other.old_stuff.shader import Program, VertexShader, FragmentShader
 
 # All calls to OpenGL functions must happen after we've created the context!
 window = Window(width=720, height=720)

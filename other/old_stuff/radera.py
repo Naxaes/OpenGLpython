@@ -1,9 +1,11 @@
-from pyglet.gl import *
-from pyglet.window import Window, mouse
 from ctypes import cast, pointer, POINTER, sizeof, create_string_buffer, c_char, c_float, c_uint
 from math import cos, sin, tan, pi
+
 import numpy
-from glsl import *
+from pyglet.gl import *
+from pyglet.window import Window, mouse
+
+from other.old_stuff.glsl import *
 
 
 def create_transformation_matrix(x, y, z, rx, ry, rz, sx, sy, sz):

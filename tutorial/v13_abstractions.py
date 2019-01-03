@@ -23,6 +23,7 @@ class Shader:
         glUseProgram(self.id)
         Shader.bound = self  # Just for safety.
 
+    @staticmethod
     def disable(self):
         glUseProgram(0)
         Shader.bound = None

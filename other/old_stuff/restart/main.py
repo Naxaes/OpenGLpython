@@ -1,12 +1,12 @@
 from numpy.random import randint, random
 from pyglet.gl import *
 from pyglet.window import Window, mouse, key
-
-from restart.mathematics import create_transformation_matrix, create_perspective_matrix
 from restart.entity import Entity, Light, StaticModel, Quad2D
+from restart.mathematics import create_transformation_matrix, create_perspective_matrix
 from restart.shader import LightShader, ObjectShader, SelectShader, FontShader
 from restart.texture import Texture
-from restart.font import Font
+
+from other.old_stuff.restart.font import Font
 
 config = pyglet.gl.Config(double_buffer=True, depth_size=24, stencil_size=8, alpha_size=8)
 

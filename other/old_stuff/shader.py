@@ -1,11 +1,13 @@
+import sys
+
+import numpy
 from pyglet.gl import (
-    GLboolean, GLuint, GLint, GLfloat, GLdouble, GLsizei, GLenum, GLchar, GLException,
+    GLuint, GLint, GLfloat, GLException,
 
     glCreateShader, glShaderSource, glCompileShader, glGetShaderiv, glCreateProgram, glAttachShader,
-    glBindAttribLocation, glLinkProgram, glValidateProgram, glGetUniformLocation, glGetAttribLocation, glGetProgramiv,
-    glGetShaderInfoLog, glGetProgramInfoLog, glUseProgram, glGetActiveUniform, glGetActiveAttrib, glGetError,
-
-    glUniform1f, glUniform2f, glUniform3f, glUniform4f, glUniform1i, glUniform2i, glUniform3i, glUniform4i,
+    glBindAttribLocation, glLinkProgram, glValidateProgram, glGetUniformLocation, glGetProgramiv,
+    glGetShaderInfoLog, glGetProgramInfoLog, glUseProgram, glUniform1f, glUniform2f, glUniform3f, glUniform4f,
+    glUniform1i, glUniform2i, glUniform3i, glUniform4i,
     glUniform1ui, glUniform2ui, glUniform3ui, glUniform4ui,
     glUniform1fv, glUniform2fv, glUniform3fv, glUniform4fv, glUniform1iv, glUniform2iv, glUniform3iv, glUniform4iv,
     glUniform1uiv, glUniform2uiv, glUniform3uiv, glUniform4uiv,
@@ -14,14 +16,10 @@ from pyglet.gl import (
     glUniformMatrix3x2fv, glUniformMatrix3fv, glUniformMatrix3x4fv,
     glUniformMatrix4x2fv, glUniformMatrix4x3fv, glUniformMatrix4fv,
 
-    GL_FALSE, GL_TRUE, GL_COMPILE_STATUS, GL_LINK_STATUS, GL_VALIDATE_STATUS, GL_ATTACHED_SHADERS, GL_ACTIVE_ATTRIBUTES,
-    GL_ACTIVE_UNIFORMS, GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_INFO_LOG_LENGTH, GL_NO_ERROR,
-)
-from c_bindings import c_string, c_string_array, c_array, byref, create_string_buffer, pointer, cast, POINTER
-from temporary import table, temp
-import sys
-import numpy
-from glsl import Mat4
+    GL_FALSE, GL_TRUE, GL_COMPILE_STATUS, GL_LINK_STATUS, GL_VALIDATE_STATUS, GL_ATTACHED_SHADERS, GL_VERTEX_SHADER,
+    GL_FRAGMENT_SHADER, GL_INFO_LOG_LENGTH, )
+
+from other.old_stuff.restart.c_bindings import c_string, c_string_array, byref, create_string_buffer, POINTER
 
 """
 There are 5 data types that can be uploaded to the shader in 5 different structures:

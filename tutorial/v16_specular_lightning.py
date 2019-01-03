@@ -1,20 +1,98 @@
 import numpy
+import os
 from numpy.random import randint
 from pyglet.gl import *
 from pyglet.window import Window, mouse, key
 from ctypes import cast, pointer, POINTER, byref, sizeof, create_string_buffer, c_char, c_float, c_uint
 from math import cos, sin, tan, pi
 
-# NEW - We want a stencil buffer with 8-bit values. Don't know why we have to specify double_buffer,
+# We want a stencil buffer with 8-bit values. Don't know why we have to specify double_buffer,
 # but it don't work otherwise. The other default values are good.
 config = pyglet.gl.Config(stencil_size=8, double_buffer=True)
-window = Window(width=480, height=480, config=config)  # CHANGED
+window = Window(width=480, height=480, config=config)
 
-# MOVED - Moved glEnable and glCullFace to the draw function.
+
+class Font:
+    def __init__(self, path):
+        self.characters = {}
+        texture_path = None
+
+        for line in open(path):
+            if line.startswith('page '):
+                for statement in line.split(' '):
+                    if statement.startswith('file'):
+                        texture_path = statement.split('=')[-1].replace('"', '', 2).replace('\n', '')
+            elif line.startswith('common '):
+                pass
+            elif line.startswith('char '):
+                character_attributes = {}
+                for statement in line.split(' '):
+                    if '=' in statement:
+                        attribute, value = statement.split('=')
+                        character_attributes[attribute] = int(value)
+
+                        if 'id=' in statement:
+                            self.characters[int(value)] = character_attributes
+
+        assert texture_path, 'Could not find the texture!'
+        folder_path = os.path.split(path)[0]
+        self.texture = load_texture(os.path.join(folder_path, texture_path))
+
+    def create_text_quad(self, text, anchor_center=False):
+
+        positions = []
+        texture_coordinates = []
+        indices = []
+
+        cursor_x, cursor_y = 0, 0
+        index = 0
+
+        height = self.texture.height
+
+        for character in text:
+            info = self.characters[ord(character)]
+            tx, ty = info['x'], info['y']
+            tw, th = info['width'], info['height']
+            x, y = cursor_x + info['xoffset'], cursor_y - info['yoffset']
+
+            v = [
+                x, y,  # topleft
+                x, y - th,  # bottomleft
+                   x + tw, y - th,  # bottomright
+                   x + tw, y,  # topright
+            ]
+            t = [
+                tx, height - ty,  # topleft
+                tx, height - (ty + th),  # bottomleft
+                    tx + tw, height - (ty + th),  # bottomright
+                    tx + tw, height - ty  # topright
+            ]
+            i = [index, index + 1, index + 3, index + 3, index + 1, index + 2]
+
+            positions.extend(v)
+            texture_coordinates.extend(t)
+            indices.extend(i)
+
+            index += 4
+
+            cursor_x += info['xadvance']
+
+        # Normalize
+        max_value = max((self.texture.height, self.texture.width))
+
+        if anchor_center:
+            width = cursor_x
+            offset = (width / 2) / max_value
+            positions = [i / max_value - offset for i in positions]
+        else:
+            positions = [i / max_value for i in positions]
+
+        texture_coordinates = [i / max_value for i in texture_coordinates]
+
+        return positions, texture_coordinates, indices
 
 
 class Shader:
-
     bound = None  # This is okay if we assume we're only going to need one OpenGL context.
 
     def __init__(self, sources, attributes, uniforms):
@@ -25,25 +103,31 @@ class Shader:
         Shader.bound = self  # Just for safety.
 
     @staticmethod
-    def disable(self):
+    def disable():
         glUseProgram(0)
         Shader.bound = None
 
-    def load_uniform_matrix(self, name, data):
+    def load_uniform_matrix(self, **uniforms):
         assert Shader.bound is self, "Must bind this shader before being able to load uniform."
-        glUniformMatrix4fv(self.uniform[name], 1, GL_TRUE, data.ctypes.data_as(POINTER(GLfloat)))
+        for name, data in uniforms.items():
+            glUniformMatrix4fv(self.uniform[bytes(name, 'utf-8')], 1, GL_TRUE, data.ctypes.data_as(POINTER(GLfloat)))
 
-    def load_uniform_floats(self, name, data):
+    def load_uniform_floats(self, **uniforms):
         assert Shader.bound is self, "Must bind this shader before being able to load uniform."
-        if isinstance(data, (float, int)):
-            glUniform1f(self.uniform[name], data)
-        else:
-            functions = glUniform2f, glUniform3f, glUniform4f
-            functions[len(data)-2](self.uniform[name], *data)
+        for name, data in uniforms.items():
+            if isinstance(data, (float, int)):
+                glUniform1f(self.uniform[bytes(name, 'utf-8')], data)
+            else:
+                functions = glUniform2f, glUniform3f, glUniform4f
+                functions[len(data) - 2](self.uniform[bytes(name, 'utf-8')], *data)
+
+    def load_uniform_sampler(self, **uniforms):
+        assert Shader.bound is self, "Must bind this shader before being able to load uniform."
+        for name, data in uniforms.items():
+            glUniform1i(self.uniform[bytes(name, 'utf-8')], data)
 
 
 class VBO:
-
     def __init__(self, id_, dimension):
         self.id = id_
         self.dimension = dimension
@@ -56,8 +140,7 @@ class VBO:
 
 
 class Model:
-
-    bound = None  # This is okay if we assume we're only going to need one OpenGL context.
+    bound = None  # This is okay if we assume we're only going to use one OpenGL context.
 
     def __init__(self, vbos, indexed_vbo, count):
         self.vbos = vbos
@@ -83,7 +166,6 @@ class Model:
 
 
 class Transform:
-
     def __init__(self, location, rotation, scale):
         self.location = list(location)  # Should really be a vector instead.
         self.rotation = list(rotation)
@@ -169,19 +251,17 @@ def create_shader_program(sources, attributes, uniforms):
         glCompileShader(handle)
         shader_handles.append(handle)
 
-    # NEW
     # Create attributes.
     attribute_mapping = []
     for attribute in attributes:
         attribute_mapping.append(create_string_buffer(attribute))
 
-    # NEW
     try:
         # Create program.
         program_handle = glCreateProgram()
         glAttachShader(program_handle, shader_handles[0])
         glAttachShader(program_handle, shader_handles[1])
-        for index, name in enumerate(attributes):  # CHANGED
+        for index, name in enumerate(attributes):
             glBindAttribLocation(program_handle, index, name)
         glLinkProgram(program_handle)
         glValidateProgram(program_handle)
@@ -228,7 +308,7 @@ def create_object(vertices, texture_coordinates, normals, indices):
 
     glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-    # Create and bind vbo. CHANGED (REMOVED color vbo and replaced it with texture)
+    # Create and bind vbo.
     texture_coordinates_vbo = c_uint()
     glGenBuffers(1, texture_coordinates_vbo)
     glBindBuffer(GL_ARRAY_BUFFER, texture_coordinates_vbo)
@@ -237,7 +317,7 @@ def create_object(vertices, texture_coordinates, normals, indices):
 
     # Associate vertex attribute 2 with the bound vbo (our texture_coordinates vbo) above.
     glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0)  # CHANGED (to 2 instead of 3).
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0)
 
     glBindBuffer(GL_ARRAY_BUFFER, 0)
 
@@ -262,11 +342,49 @@ def create_object(vertices, texture_coordinates, normals, indices):
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
-    # CHANGED
     vbos = VBO(vbo, 3), VBO(texture_coordinates_vbo, 2), VBO(normal_vbo, 3)
     return Model(vbos=vbos, indexed_vbo=indexed_vbo, count=len(indices))
 
     # return vbo, texture_coordinates_vbo, normal_vbo, indexed_vbo, len(indices)
+
+
+def create_2D_object(vertices, texture_coordinates, indices):
+    # Create and bind vbo.
+    vbo = c_uint()
+    glGenBuffers(1, vbo)
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, len(vertices) * sizeof(c_float), (c_float * len(vertices))(*vertices), GL_STATIC_DRAW)
+
+    # Associate vertex attribute 0 (position) with the bound vbo above.
+    glEnableVertexAttribArray(0)
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0)
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+
+    # Create and bind vbo.
+    texture_coordinates_vbo = c_uint()
+    glGenBuffers(1, texture_coordinates_vbo)
+    glBindBuffer(GL_ARRAY_BUFFER, texture_coordinates_vbo)
+    glBufferData(GL_ARRAY_BUFFER, len(texture_coordinates) * sizeof(c_float),
+                 (c_float * len(texture_coordinates))(*texture_coordinates), GL_STATIC_DRAW)
+
+    # Associate vertex attribute 2 with the bound vbo (our texture_coordinates vbo) above.
+    glEnableVertexAttribArray(1)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0)
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+
+    # Create and bind indexed vbo.
+    indexed_vbo = c_uint()
+    glGenBuffers(1, indexed_vbo)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexed_vbo)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, len(indices) * sizeof(c_uint), (c_uint * len(indices))(*indices),
+                 GL_STATIC_DRAW)
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+
+    vbos = VBO(vbo, 2), VBO(texture_coordinates_vbo, 2)
+    return Model(vbos=vbos, indexed_vbo=indexed_vbo, count=len(indices))
 
 
 def create_cube():
@@ -391,7 +509,7 @@ def get_all_entities(mapping):
     else:
         assert False
 
-# NEW
+
 def get_selected_entity_transform():
     entity = all_entities[entity_selected]
     if isinstance(entity, list):
@@ -401,7 +519,7 @@ def get_selected_entity_transform():
     return transform
 
 
-# NEW - Hack until we make better data structure for entities.
+# Hack until we make better data structure for entities.
 def get_entity_model_index(entity):
     for model_index, texture_mapping in entities.items():
         for texture_index, entity_list in texture_mapping.items():
@@ -415,10 +533,9 @@ def get_entity_model_index(entity):
     return None
 
 
-
 @window.event
 def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
-    transform = get_selected_entity_transform()  # CHANGED
+    transform = get_selected_entity_transform()
     if buttons == mouse.LEFT:
         transform.location[0] += dx / 250
         transform.location[1] += dy / 250
@@ -432,7 +549,7 @@ def on_mouse_drag(x, y, dx, dy, buttons, modifiers):
 
 @window.event
 def on_mouse_scroll(x, y, scroll_x, scroll_y):
-    transform = get_selected_entity_transform()  # CHANGED
+    transform = get_selected_entity_transform()
     transform.location[2] -= scroll_y / 10
     transform.location[0] += scroll_x / 10
 
@@ -448,23 +565,23 @@ def on_key_press(symbol, modifiers):
 
 @window.event
 def on_draw():
-    # MOVED - From global scope. Must be set here because we turn those of when rendering using stencil buffer.
+    # Must be set here because we turn those of when rendering using stencil buffer.
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_CULL_FACE)
     glCullFace(GL_BACK)
-    glEnable(GL_STENCIL_TEST)  # NEW
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)  # NEW - Keep if depth test fails, keep if stencil test fails, replace if both succeed.
+    glEnable(GL_STENCIL_TEST)
+    glStencilOp(GL_KEEP, GL_KEEP,
+                GL_REPLACE)  # Keep if depth test fails, keep if stencil test fails, replace if both succeed.
 
-    glStencilFunc(GL_ALWAYS, 1, 0xFF)          # NEW - Always fill the stencil buffer.
-    glStencilMask(0xFF)                        # NEW - 0xFF turns on writes the stencil mask. 0x00 disables writes.
+    glStencilFunc(GL_ALWAYS, 1, 0xFF)  # Always fill the stencil buffer.
+    glStencilMask(0xFF)  # 0xFF turns on writes the stencil mask. 0x00 disables writes.
 
     # Apparently, if we've haven't enabled writes for the stencil mask before this line, the stencil mask won't be cleared.
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)  # CHANGED
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT)
 
     # Light shader
     simple_program.enable()
-    simple_program.load_uniform_matrix(name=b'perspective', data=perspective_matrix)
-    simple_program.load_uniform_matrix(name=b'view', data=camera.matrix())
+    simple_program.load_uniform_matrix(perspective=perspective_matrix, view=camera.matrix())
 
     for model_index, entity_list in lights.items():
         model = models[model_index]
@@ -473,68 +590,87 @@ def on_draw():
         for entity in entity_list:
             transform, color, attenuation = entity
 
-            simple_program.load_uniform_matrix(name=b'transformation', data=transform.matrix())
-            simple_program.load_uniform_floats(name=b'color', data=color)
+            simple_program.load_uniform_matrix(transformation=transform.matrix())
+            simple_program.load_uniform_floats(color=color)
 
             model.render()
 
     # Object shader
     program.enable()
-    program.load_uniform_matrix(name=b'perspective', data=perspective_matrix)
-    program.load_uniform_matrix(name=b'view', data=camera.matrix())
+    program.load_uniform_matrix(perspective=perspective_matrix, view=camera.matrix())
 
     for i, entity in enumerate(get_all_entities(lights)):
-        program.load_uniform_floats(name=b'light[' + bytes(str(i), 'utf-8') + b'].position',  data=entity[0].location)
-        program.load_uniform_floats(name=b'light[' + bytes(str(i), 'utf-8') + b'].color',     data=entity[1])
-        program.load_uniform_floats(name=b'light[' + bytes(str(i), 'utf-8') + b'].constant',  data=entity[2][0])
-        program.load_uniform_floats(name=b'light[' + bytes(str(i), 'utf-8') + b'].linear',    data=entity[2][1])
-        program.load_uniform_floats(name=b'light[' + bytes(str(i), 'utf-8') + b'].quadratic', data=entity[2][2])
-
-    glActiveTexture(GL_TEXTURE0)
+        program.load_uniform_floats(**{'light[' + str(i) + '].position': entity[0].location})
+        program.load_uniform_floats(**{'light[' + str(i) + '].color': entity[1]})
+        program.load_uniform_floats(**{'light[' + str(i) + '].constant': entity[2][0]})
+        program.load_uniform_floats(**{'light[' + str(i) + '].linear': entity[2][1]})
+        program.load_uniform_floats(**{'light[' + str(i) + '].quadratic': entity[2][2]})
 
     for model_index, texture_mapping in entities.items():
         model = models[model_index]
         model.enable()
 
-        for texture_index, entity_list in texture_mapping.items():
+        for texture_indices, entity_list in texture_mapping.items():
 
             # Make bindings for texture.
-            texture = textures[texture_index]
-            glBindTexture(GL_TEXTURE_2D, texture.id)
+            # CHANGED
+            for index, texture_index in enumerate(texture_indices):
+                glActiveTexture(GL_TEXTURE0 + index)
+                texture = textures[texture_index]
+                glBindTexture(GL_TEXTURE_2D, texture.id)
+            texture_names = {'material.diffuse': 0, 'material.specular': 1, 'material.emission': 2}
+            program.load_uniform_sampler(**texture_names)
+            program.load_uniform_floats(**{'material.shininess': 32})
 
             for entity in entity_list:
                 transform = entity
 
                 # Prepare entities of specific model and texture, and draw.
-                program.load_uniform_matrix(name=b'transformation', data=transform.matrix())
+                program.load_uniform_matrix(transformation=transform.matrix())
                 model.render()
 
-    # NEW - Stencil shader
-    glDisable(GL_DEPTH_TEST)             # Disable depth tests.
+    # Stencil shader
+    glDisable(GL_DEPTH_TEST)  # Disable depth tests.
     glStencilFunc(GL_NOTEQUAL, 1, 0xFF)  # Only draw where the stencil buffer isn't 1.
-    glStencilMask(0x00)                  # Disable writes.
+    glStencilMask(0x00)  # Disable writes.
 
-    transform  = get_selected_entity_transform()
+    transform = get_selected_entity_transform()
     sx, sy, sz = transform.scale
     # Make the transform slightly bigger so it's visible.
-    transform   = create_transformation_matrix(*transform.location, *transform.rotation, sx*1.1, sy*1.1, sz*1.1)
+    transform = create_transformation_matrix(*transform.location, *transform.rotation, sx * 1.1, sy * 1.1, sz * 1.1)
     model_index = get_entity_model_index(all_entities[entity_selected])
-    if model_index is None: return  # It's the camera.
-    model = models[model_index]
+    if model_index is not None:
+        model = models[model_index]
 
-    simple_program.enable()
-    simple_program.load_uniform_matrix(name=b'perspective', data=perspective_matrix)
-    simple_program.load_uniform_matrix(name=b'view', data=camera.matrix())
-    simple_program.load_uniform_matrix(name=b'transformation', data=transform)
-    simple_program.load_uniform_floats(name=b'color', data=[255, 0, 255])
+        simple_program.enable()
+        simple_program.load_uniform_matrix(perspective=perspective_matrix, view=camera.matrix(),
+                                           transformation=transform)
+        simple_program.load_uniform_floats(color=[255, 0, 255])
 
-    model.enable()
-    model.render()
+        model.enable()
+        model.render()
 
+    # Render text
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_CULL_FACE)
+
+    text_positions, text_texture_coordinates, text_indices = font_arial.create_text_quad("Hello", anchor_center=True)
+    text = create_2D_object(text_positions, text_texture_coordinates, text_indices)
+
+    simple_2D_program.enable()
+    simple_2D_program.load_uniform_matrix(perspective=perspective_matrix, view=camera.matrix(),
+                                          transformation=text_transform.matrix())
+    simple_2D_program.load_uniform_floats(color=[255, 255, 255])
+
+    glActiveTexture(GL_TEXTURE0)
+    glBindTexture(GL_TEXTURE_2D, font_arial.texture.id)
+
+    text.enable()
+    text.render()
 
 
 # Create shaders.
-object_shaders = [
+object_shaders = [  # CHANGED
     b"""
     #version 120
 
@@ -594,49 +730,76 @@ object_shaders = [
         float linear;
         float quadratic;
     };
+    
+    struct Material {
+        sampler2D diffuse;
+        sampler2D specular;
+        sampler2D emission;
+        float shininess;
+    };
 
     const int NUM_LIGHTS = 4;
 
     uniform sampler2D texture;
     uniform Light light[NUM_LIGHTS];
     uniform mat4  view;
+    uniform Material material;
 
     varying vec3 out_position;
     varying vec3 out_normal;
     varying vec2 out_texture_coordinate;
 
+
+    vec3 calculate_pointlight(Light light, Material material, vec3 position, vec3 normal, vec2 texture_coordinate)
+    {
+    
+        vec3  light_direction = normalize(light.position - position);
+        vec3  camera_position = -view[3].xyz;
+    
+        // Attenuation
+        float distance = length(light.position - position);
+        float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * distance * distance);
+    
+        // Ambient
+        vec3 ambient = light.color * 0.2 * vec3(texture2D(material.diffuse, texture_coordinate));
+    
+        // Diffuse
+        float diffuse_factor = max(dot(normal, light_direction), 0.0);
+        vec3  diffuse = light.color * 0.5 * diffuse_factor * vec3(texture2D(material.diffuse, texture_coordinate));
+    
+        // Specular
+        vec3  camera_direction = normalize(camera_position - position);
+        vec3  reflection_direction = reflect(-light_direction, normal);
+        float specular_factor = pow(max(dot(camera_direction, reflection_direction), 0.0), material.shininess);
+        vec3  specular = light.color * specular_factor * vec3(texture2D(material.specular, texture_coordinate));
+    
+        return (ambient + diffuse + specular) * attenuation;
+    }
+
+
+
     void main()
     {
-        vec3 camera_position = -view[3].xyz;
-        vec4 light_color = vec4(0.0, 0.0, 0.0, 0.0);
-        float attenuation = 0.0;
-
-        for (int i = 0; i < NUM_LIGHTS; i++) {
-            vec3 vector_to_light = light[i].position - out_position;
-
-            vec3  direction_to_light = normalize(vector_to_light);
-            float distance_to_light  = length(vector_to_light);
-
-            float angle_normal_and_light = dot(out_normal, direction_to_light);
-            float diffuse_factor = clamp(angle_normal_and_light, 0.0, 1.0);        // or max(angle_normal_and_light, 1.0)
-            attenuation += 1.0 / (
-                light[i].constant + light[i].linear * distance_to_light + light[i].quadratic * distance_to_light * distance_to_light
-                );
-
-            light_color += vec4(light[i].color * diffuse_factor, 1.0);
+        vec3 ambient  = vec3(0.0);
+        vec3 diffuse  = vec3(0.0);
+        vec3 specular = vec3(0.0);
+        vec3 total_light = vec3(0.0);
+        
+        vec3 normal = normalize(out_normal);
+        
+        
+        // Light calculations.
+        for (int i = 0; i < NUM_LIGHTS; i++)
+        {
+            total_light += calculate_pointlight(light[i], material, out_position, normal, out_texture_coordinate);
         }
 
-        vec4 color = texture2D(texture, out_texture_coordinate);
-
-        vec4 ambient = color * 0.2;
-        vec4 diffuse = color * light_color * attenuation;
-
-        gl_FragColor = ambient + diffuse;
+        gl_FragColor =  vec4(total_light, 1.0);
     }
 
     """
 ]
-simple_shaders = [  # RENAME - Using this shader to render single color.
+simple_shaders = [  # Using this shader to render single color.
     b"""
     #version 120
 
@@ -665,14 +828,55 @@ simple_shaders = [  # RENAME - Using this shader to render single color.
     """
 ]
 
-temp = []
+simple_2D_shaders = [
+    b"""
+    #version 120
+
+    uniform mat4 transformation;
+    uniform mat4 perspective;
+    uniform mat4 view;
+
+    attribute vec2 position;
+    attribute vec2 texture_coordinate;
+
+    varying vec2 out_texture_coordinate;
+
+    void main()
+    {    
+        gl_Position =  perspective * view * transformation * vec4(position, 0.0, 1.0);
+        out_texture_coordinate = texture_coordinate;
+    }
+
+    """,
+    b"""
+    #version 120
+
+    varying vec2 out_texture_coordinate;
+
+    uniform vec3 color;
+    uniform sampler2D font_texture;
+
+    void main()
+    {    
+        gl_FragColor = texture2D(font_texture, out_texture_coordinate).a * vec4(color, 1.0);
+    }
+
+    """
+]
+
+font_arial = Font('../resources/fonts/arial.fnt')
+text_transform = Transform(location=(0, 0, 0), rotation=(0, 0, 0), scale=(10, 10, 10))
+
+light_uniforms = []
 for i in range(4):
     for attribute in [b'].position', b'].color', b'].intensity', b'].constant', b'].linear', b'].quadratic']:
-        temp.append(b'light[' + bytes(str(i), 'utf-8') + attribute)
+        light_uniforms.append(b'light[' + bytes(str(i), 'utf-8') + attribute)
+
+material_uniforms = [bytes('material.' + x, 'utf-8') for x in ('diffuse', 'specular', 'emission', 'shininess')]
 
 attributes = [b'position', b'texture_coordinate', b'normal']
 uniforms = [
-    b'transformation', b'perspective', b'view', *temp
+    b'transformation', b'perspective', b'view', *light_uniforms, *material_uniforms
 ]
 program = Shader(object_shaders, attributes, uniforms)
 
@@ -680,37 +884,56 @@ simple_attributes = [b'position']
 simple_uniforms = [b'transformation', b'perspective', b'view', b'color']
 simple_program = Shader(simple_shaders, simple_attributes, simple_uniforms)
 
+simple_2D_attributes = [b'position']
+simple_2D_uniforms = [b'transformation', b'perspective', b'view', b'color']
+simple_2D_program = Shader(simple_2D_shaders, simple_2D_attributes, simple_2D_uniforms)
+
 CUBE = 0
 SPHERE = 1
 models = [create_cube(), load_model('../resources/models/sphere.obj')]
 
-CONTAINER = 0
-ALUMINIUM_PLATE = 1
+# CHANGED
+CONTAINER_DIFFUSE  = 0
+CONTAINER_SPECULAR = 1
+CONTAINER_EMISSION = 2
+ALUMINIUM_PLATE    = 3
 textures = [
-    load_texture('../resources/textures/Container.png'), load_texture('../resources/textures/AluminiumPlate.png')
+    load_texture('../resources/textures/Container.png'), load_texture('../resources/textures/ContainerSpecular.png'),
+    load_texture('../resources/textures/ContainerEmission.png'), load_texture('../resources/textures/AluminiumPlate.png')
 ]
 
 entities = {
     CUBE  : {
-        CONTAINER      : [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]) for i in range(5)],
-        ALUMINIUM_PLATE: [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]) for i in range(5)]
+        (CONTAINER_DIFFUSE, CONTAINER_SPECULAR, CONTAINER_EMISSION): [  # CHANGED
+            Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1])
+            for i in range(5)],
+        (ALUMINIUM_PLATE, ) : [  # CHANGED
+            Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1])
+            for i in range(5)]
     },
     SPHERE: {
-        CONTAINER      : [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]) for i in range(5)],
-        ALUMINIUM_PLATE: [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]) for i in range(5)]
+        (CONTAINER_DIFFUSE, CONTAINER_SPECULAR, CONTAINER_EMISSION): [   # CHANGED
+            Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1])
+            for i in range(5)],
+        (ALUMINIUM_PLATE, ) : [  # CHANGED
+            Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1])
+            for i in range(5)]
     },
 }
 
 lights = {  # lights have no material but instead has two extra entity attributes: color and attenuation.
-    CUBE  : [[Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]), [0.5, 1.0, 1.0], [1.0, 0.009, 0.032]] for i in range(2)],
-    SPHERE: [[Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]), [0.5, 1.0, 1.0], [1.0, 0.009, 0.032]] for i in range(2)]
+    CUBE  : [
+        [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]),
+         [0.5, 1.0, 1.0], [1.0, 0.009, 0.032]] for i in range(2)],
+    SPHERE: [
+        [Transform(location=[randint(-6, 6), randint(-6, 6), randint(-8, -2)], rotation=[0, 0, 0], scale=[1, 1, 1]),
+         [0.5, 1.0, 1.0], [1.0, 0.009, 0.032]] for i in range(2)]
 }
 
 perspective_matrix = create_perspective_matrix(60, window.width / window.height, 0.1, 100)
-camera = Transform(location=[0, 0, -10], rotation=[0, 0, 0], scale=[1, 1, 1])  # CHANGED
-
+camera = Transform(location=[0, 0, -10], rotation=[0, 0, 0], scale=[1, 1, 1])
 
 entity_selected = 0
-all_entities = get_all_entities(entities) + get_all_entities(lights) + [camera]
+all_entities = get_all_entities(entities) + get_all_entities(lights) + [camera, text_transform]
 
 pyglet.app.run()

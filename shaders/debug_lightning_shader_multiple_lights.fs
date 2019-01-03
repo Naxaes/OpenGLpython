@@ -1,6 +1,6 @@
 #version 120
 
-# define NUM_POINT_LIGHTS 4
+#define NUM_POINT_LIGHTS 4
 
 
 struct PointLight {

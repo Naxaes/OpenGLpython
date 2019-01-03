@@ -1,6 +1,7 @@
-from numpy import array, empty
-from pyglet.gl import GLfloat, GLuint, GLint, GLboolean, GLdouble
-from glsl import *
+from numpy import array
+from pyglet.gl import GLint
+
+from other.old_stuff.glsl import *
 
 
 def is_struct(x):

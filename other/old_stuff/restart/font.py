@@ -1,5 +1,7 @@
-from restart.texture import Texture
 import os
+
+from other.old_stuff.restart.texture import Texture
+
 
 class Font:
 

@@ -1,17 +1,13 @@
+from ctypes import sizeof
+
+import numpy
 from pyglet.gl import (
-    glGenBuffers, glBindBuffer, glBufferData, glEnableVertexAttribArray, glDisableVertexAttribArray,
-    glVertexAttribPointer, glDrawElements, glUniformMatrix4fv, glUniformMatrix3fv,
-
+    glGenBuffers, glBindBuffer, glBufferData, glEnableVertexAttribArray, glVertexAttribPointer, glDrawElements,
     GL_ARRAY_BUFFER, GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, GL_FLOAT, GL_FALSE, GL_TRIANGLES, GL_UNSIGNED_INT,
-    GL_TRUE,
-
     GLfloat, GLuint
 )
-from ctypes import sizeof, POINTER
-import numpy
 
-from restart.mathematics import create_transformation_matrix, create_2D_transformation_matrix, sin, cos
-
+from other.old_stuff.restart.mathematics import create_transformation_matrix, create_2D_transformation_matrix
 
 
 class Entity(GLuint):

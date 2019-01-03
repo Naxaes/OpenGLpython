@@ -1,23 +1,22 @@
+from ctypes import cast, byref, pointer, POINTER, create_string_buffer
+
 from pyglet.gl import (
     glCreateShader, glShaderSource, glCompileShader, glCreateProgram, glAttachShader, glBindAttribLocation,
     glLinkProgram, glValidateProgram, glUseProgram, glGetShaderiv, glGetShaderInfoLog, glGetProgramiv,
-    glGetProgramInfoLog, glGetUniformLocation, glUniformMatrix4fv, glBindBuffer, glEnableVertexAttribArray,
-    glVertexAttribPointer, glUniform3f, glDrawElements, glDisableVertexAttribArray, glBindTexture, glActiveTexture,
-    glUniform1f, glDisable, glColorMask, glStencilMask, glEnable, glStencilFunc, glUniformMatrix3fv, glGetActiveUniform,
+    glGetProgramInfoLog, glGetUniformLocation, glUniformMatrix4fv, glBindBuffer, glUniform3f,
+    glDisableVertexAttribArray, glBindTexture, glActiveTexture,
+    glUniform1f, glDisable, glColorMask, glStencilMask, glEnable, glStencilFunc, glUniformMatrix3fv, glUniform1i,
 
-    GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_INFO_LOG_LENGTH, GL_TRUE, GL_ARRAY_BUFFER, GL_FLOAT,
-    GL_FALSE, GL_ELEMENT_ARRAY_BUFFER, GL_TRIANGLES, GL_UNSIGNED_INT, GL_TEXTURE_2D, GL_TEXTURE0,
-    GL_DEPTH_TEST, GL_NOTEQUAL, GL_ACTIVE_UNIFORMS,
-
-    GLuint, GLint, GLchar, GLException, GLfloat, GLsizei, GLenum
+    GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, GL_INFO_LOG_LENGTH, GL_TRUE, GL_ARRAY_BUFFER, GL_FALSE,
+    GL_ELEMENT_ARRAY_BUFFER, GL_TEXTURE_2D, GL_TEXTURE0,
+    GL_DEPTH_TEST, GL_NOTEQUAL, GLuint, GLint, GLchar, GLException, GLfloat
 )
-from ctypes import cast, byref, pointer, POINTER, create_string_buffer, addressof, c_char_p
+from restart.mathematics import create_transformation_matrix
 
-from restart.mathematics import create_transformation_matrix, create_2D_transformation_matrix
-from restart.temp import uniform_function
+from other.old_stuff.restart.temp import uniform_function
 
 
-class Uniform(GLuint):
+class Uniform(GLuint):  # This might be over-thinking it!
 
     def __init__(self, name, location, data_type):
         super().__init__(location)
@@ -30,23 +29,27 @@ class Uniform(GLuint):
             self.function = uniform_function[data_type]
             self.arguments = ()
 
+    @classmethod
+    def create(cls, program):
+        pass
+
     def load(self, *args):
         self.function(self.value, *self.arguments, *args)
 
 
 class ShaderProgram(GLuint):
+
+
     def __init__(self, shaders, attributes, uniforms):
         vertex_shader = shaders[0]
         fragment_shader = shaders[1]
 
         vertex_handle = glCreateShader(GL_VERTEX_SHADER)
-        glShaderSource(vertex_handle, 1,
-                       cast(pointer(pointer(create_string_buffer(vertex_shader))), POINTER(POINTER(GLchar))), None)
+        glShaderSource(vertex_handle, 1, cast(pointer(pointer(create_string_buffer(vertex_shader))), POINTER(POINTER(GLchar))), None)
         glCompileShader(vertex_handle)
 
         fragment_handle = glCreateShader(GL_FRAGMENT_SHADER)
-        glShaderSource(fragment_handle, 1,
-                       cast(pointer(pointer(create_string_buffer(fragment_shader))), POINTER(POINTER(GLchar))), None)
+        glShaderSource(fragment_handle, 1, cast(pointer(pointer(create_string_buffer(fragment_shader))), POINTER(POINTER(GLchar))), None)
         glCompileShader(fragment_handle)
 
         # Create attributes.
@@ -89,35 +92,36 @@ class ShaderProgram(GLuint):
             glGetProgramInfoLog(program_handle, status, None, output)
             print(output.value.decode('utf-8'))
 
-        # # Get uniform location.
-        # uniform_mapping = {}
-        # for uniform in uniforms:
-        #     name = create_string_buffer(uniform)
-        #     location = glGetUniformLocation(program_handle, cast(pointer(name), POINTER(GLchar)))
-        #     uniform_mapping[uniform] = location
 
-
-        active_shaders = GLint()
-        glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, active_shaders)
-
-        buffer_size = GLsizei(255)
-        data_type = GLenum(0)
-
-        string_buffer = create_string_buffer(buffer_size.value)
-        name = c_char_p(addressof(string_buffer))
-
+        # Get uniform location.
         uniform_mapping = {}
-        for index in range(active_shaders.value):
-            glGetActiveUniform(program_handle, index, buffer_size, None, None, byref(data_type), name)
-            if name.value in uniforms:
-                location = glGetUniformLocation(program_handle, cast(pointer(name), POINTER(GLchar)))
-                uniform = Uniform(name.value, location, data_type.value)
-                uniform_mapping[name.value] = uniform
+        for uniform in uniforms:
+            name = create_string_buffer(uniform)
+            location = glGetUniformLocation(program_handle, cast(pointer(name), POINTER(GLchar)))
+            uniform_mapping[uniform] = location
+
+
+        # active_shaders = GLint()
+        # glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, active_shaders)
+        #
+        # buffer_size = GLsizei(255)
+        # data_type = GLenum(0)
+        #
+        # string_buffer = create_string_buffer(buffer_size.value)
+        # name = c_char_p(addressof(string_buffer))
+        #
+        # uniform_mapping = {}
+        # for index in range(active_shaders.value):
+        #     glGetActiveUniform(program_handle, index, buffer_size, None, None, byref(data_type), name)
+        #     if name.value in uniforms:
+        #         location = glGetUniformLocation(program_handle, cast(pointer(name), POINTER(GLchar)))
+        #         uniform = Uniform(name.value, location, data_type.value)
+        #         uniform_mapping[name.value] = uniform
 
         super().__init__(program_handle)
         self.uniforms = uniform_mapping
         self.attributes = attribute_mapping
-
+    
     def draw(self, uniforms, entities, models, textures=(), *args, **kwargs):
         """
         Attribute entities relies on a data structure:
@@ -132,20 +136,21 @@ class ShaderProgram(GLuint):
                 },
             }
         where each key is the index to the corresponding model and texture.
-
+        
         Args:
-            uniforms:
-            entities:
-            models:
-            textures:
+            uniforms: 
+            entities: 
+            models: 
+            textures: 
 
         Returns:
 
         """
         raise NotImplemented('Draw method is not implemented!')
-
-
+        
+        
 class LightShader(ShaderProgram):
+    
     def __init__(self):
         super().__init__(
             shaders=[open('shaders/light_shader.vs', 'rb').read(), open('shaders/light_shader.fs', 'rb').read()],
@@ -156,8 +161,12 @@ class LightShader(ShaderProgram):
     def draw(self, uniforms, entities, models, *args, **kwargs):
         glUseProgram(self)
 
-        self.uniforms[b'perspective'].load(uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat)))
-        self.uniforms[b'view'].load(uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat)))
+        glUniformMatrix4fv(
+            self.uniforms[b'perspective'], 1, GL_TRUE, uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat))
+        )
+        glUniformMatrix4fv(
+            self.uniforms[b'view'], 1, GL_TRUE, uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat))
+        )
 
         for model_index, entity_list in entities.items():
             model = models[model_index]
@@ -165,58 +174,118 @@ class LightShader(ShaderProgram):
             model.enable()
 
             for entity in entity_list:
-                entity.get_transformation_matrix(self.uniforms[b'transformation'])
-                self.uniforms[b'color'].load(*entity.color)
+                glUniformMatrix4fv(
+                    self.uniforms[b'transformation'], 1, GL_TRUE,
+                    entity.get_transformation_matrix().ctypes.data_as(POINTER(GLfloat))
+                )
+                glUniform3f(self.uniforms[b'color'], *entity.color)
 
                 model.draw()
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+
         glDisableVertexAttribArray(0)
 
 
 class ObjectShader(ShaderProgram):
+
     def __init__(self):
         temp = []
         for i in range(4):
-            for attribute in [b'].position', b'].color', b'].intensity', b'].constant', b'].linear', b'].quadratic']:
+            for attribute in [b'].position', b'].color', b'].constant', b'].linear', b'].quadratic']:
                 temp.append(b'light[' + bytes(str(i), 'utf-8') + attribute)
         super().__init__(
             shaders=[open('shaders/object_shader.vs', 'rb').read(), open('shaders/object_shader.fs', 'rb').read()],
             attributes=[b'position', b'texture_coordinate', b'normal'],
-            uniforms=[b'transformation', b'perspective', b'view', *temp]
+            uniforms=[b'transformation', b'perspective', b'view', b'diffuse_texture', b'specular_texture', *temp]
         )
+
+        self.entities = {}
+
+    def add_entities(self, entities):
+        for entity in entities:
+            model = entity.model
+            textures = entity.textures
+
+            model_map = self.entities.get(model)
+            if not model_map:
+                model_map = dict()
+                self.entities[model] = model_map
+
+            entity_list = model_map.get(textures)
+            if not entity_list:
+                entity_list = list()
+                model_map[textures] = entity_list
+
+            entity_list.append(entity)
+
+
 
     def draw(self, uniforms, entities, models, textures=(), lights=(), *args, **kwargs):
         glUseProgram(self)
 
         # PREPARE SHADER
-        self.uniforms[b'perspective'].load(uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat)))
-        self.uniforms[b'view'].load(uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat)))
+        glUniformMatrix4fv(  # ctypes.data_as must be here and not at initialization.
+            self.uniforms[b'perspective'], 1, GL_TRUE, uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat))
+        )
+        glUniformMatrix4fv(
+            self.uniforms[b'view'], 1, GL_TRUE, uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat))
+        )
 
         for i, entity in enumerate(lights):
-            self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].position'].load(*entity._location)
-            self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].color'].load(*entity.color)
-            self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].constant'].load(entity.attenuation[0])
-            self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].linear'].load(entity.attenuation[1])
-            self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].quadratic'].load(entity.attenuation[1])
+            glUniform3f(self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].position'],  *entity.location)
+            glUniform3f(self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].color'],     *entity.color)
+            glUniform1f(self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].constant'],  entity.attenuation[0])
+            glUniform1f(self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].linear'],    entity.attenuation[1])
+            glUniform1f(self.uniforms[b'light[' + bytes(str(i), 'utf-8') + b'].quadratic'], entity.attenuation[1])
+
 
         # PREPARE MODELS
-        for model_index, texture_mapping in entities.items():
+        for model_index, texture_mapping in self.entities.items():
 
             model = models[model_index]
             model.enable()
 
             # PREPARE TEXTURES
-            for texture_index, entity_list in texture_mapping.items():
+            glActiveTexture(GL_TEXTURE0)
+            glActiveTexture(GL_TEXTURE0 + 1)
+            for texture_list, entity_list in texture_mapping.items():
 
-                textures[texture_index].enable()
+                if hasattr(texture_list, '__iter__'):
+                    glBindTexture(GL_TEXTURE_2D, textures[0])
+                    glUniform1i(self.uniforms[b'diffuse_texture'], 0)
+                    glBindTexture(GL_TEXTURE_2D, textures[1])
+                    glUniform1i(self.uniforms[b'specular_texture'], 1)
+
+                    # textures[0].enable(slot=0)
+                    # textures[1].enable(slot=1)
+
+                else:
+                    textures[texture_list].enable(slot=0)
+                    glUniform1i(self.uniforms[b'diffuse_texture'], 0)
+
 
                 # PREPARE ENTITIES
                 for entity in entity_list:
-                    entity.get_transformation_matrix(self.uniforms[b'transformation'])
+                    glUniformMatrix4fv(
+                        self.uniforms[b'transformation'], 1, GL_TRUE,
+                        entity.get_transformation_matrix().ctypes.data_as(POINTER(GLfloat))
+                    )
                     model.draw()
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        glDisableVertexAttribArray(0)
+        glDisableVertexAttribArray(1)
+        glDisableVertexAttribArray(2)
+
 
 
 class SelectShader(ShaderProgram):
@@ -235,16 +304,24 @@ class SelectShader(ShaderProgram):
         glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE)  # Don't write any color values to color buffer.
         glStencilMask(0xFF)  # Enable writing.
 
+
         model = models[entity.model]
 
         model.positions.enable()
         model.indices.enable()
 
-        self.uniforms[b'perspective'].load(uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat)))
-        self.uniforms[b'view'].load(uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat)))
-        self.uniforms[b'color'].load(*color)
+        glUniformMatrix4fv(
+            self.uniforms[b'perspective'], 1, GL_TRUE, uniforms.get(b'perspective').ctypes.data_as(POINTER(GLfloat))
+        )
+        glUniformMatrix4fv(
+            self.uniforms[b'view'], 1, GL_TRUE, uniforms.get(b'view').ctypes.data_as(POINTER(GLfloat))
+        )
+        glUniform3f(self.uniforms[b'color'], *color)
 
-        entity.get_transformation_matrix(location=self.uniforms[b'transformation'])
+        glUniformMatrix4fv(
+            self.uniforms[b'transformation'], 1, GL_TRUE,
+            entity.get_transformation_matrix().ctypes.data_as(POINTER(GLfloat))
+        )
 
         model.draw()
 
@@ -257,7 +334,7 @@ class SelectShader(ShaderProgram):
         glUniformMatrix4fv(
             self.uniforms[b'transformation'], 1, GL_TRUE,
             create_transformation_matrix(
-                *entity._location, *entity.rotation, *(entity.scale + 0.05)
+                *entity.location, *entity.rotation, *(entity.scale + 0.05)
             ).ctypes.data_as(POINTER(GLfloat))
         )
 
@@ -273,29 +350,37 @@ class SelectShader(ShaderProgram):
 
 
 class FontShader(ShaderProgram):
+
     def __init__(self):
         super().__init__(
             shaders=[open('shaders/font_shader.vs', 'rb').read(), open('shaders/font_shader.fs', 'rb').read()],
             attributes=[b'position', b'texture_coordinate'],
-            uniforms=[b'transformation', b'color']
+            uniforms=[b'transformation', b'color', b'font_atlas']
         )
 
     def draw(self, uniforms, text, quad, textures=(), *args, **kwargs):
         glUseProgram(self)
         glDisable(GL_DEPTH_TEST)
 
+
         quad.enable()
 
-        self.uniforms[b'color'].load(0.3, 0.3, 0.5)
+        glUniform3f(self.uniforms[b'color'], 0.3, 0.3, 0.5)
 
-        text.get_transformation_matrix_2D(location=self.uniforms[b'transformation'])
+        glUniformMatrix3fv(
+            self.uniforms[b'transformation'], 1, GL_TRUE,
+            text.get_transformation_matrix_2D().ctypes.data_as(POINTER(GLfloat))
+        )
 
-        textures.enable()
+        textures.enable(slot=0)
+        glUniform1i(self.uniforms[b'font_atlas'], 0)
 
         quad.draw()
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+
+        glBindTexture(GL_TEXTURE_2D, 0)
 
         glDisableVertexAttribArray(0)
 
