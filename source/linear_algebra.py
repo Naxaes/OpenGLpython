@@ -1,7 +1,7 @@
 from math import cos, sin, tan, pi
 
 import numpy
-from numpy import add, subtract, divide, multiply, dot, sqrt
+from numpy import add, subtract, divide, multiply, dot, sqrt, cross
 from pyglet.gl import GLfloat
 
 
