@@ -1,4 +1,5 @@
 from collections import OrderedDict, namedtuple
+from itertools import combinations
 from source.linear_algebra import *
 
 
@@ -76,10 +77,10 @@ Index: 3
 
 """
 
-class ComponentArray:
+class SwitchArray:
 
-    def __init__(self, ComponentClass):
-        self.ComponentClass = ComponentClass
+    def __init__(self, ConstructorClass):
+        self.ConstructorClass = ConstructorClass
         self.data = [None]       # Making sure to always have one free slot.
         self.last_occupied = -1  # Index of first free slot
 
@@ -102,8 +103,7 @@ class ComponentArray:
         return self.data[index]
 
     def modify(self, index, *args, **kwargs):
-        component = self.ComponentClass(*args, **kwargs)
-        self.data[index] = component
+        self.data[index] = self.ConstructorClass(*args, **kwargs)
 
     def copy(self, index, component):
         self.data[index] = component
@@ -124,12 +124,12 @@ class ComponentArray:
         return last_occupied
 
 
-class ComponentSetArray:
+class ComponentSetStorage:
 
     def __init__(self, *component_classes):
         self.mapping = {}           # For destruction
         self.component_array = {
-            component_class.__name__ : ComponentArray(component_class) for component_class in component_classes
+            component_class.__name__ : SwitchArray(component_class) for component_class in component_classes
         }
 
     def create(self):
@@ -177,17 +177,25 @@ class Entity:
 
 
 class World:
-    registered_components = [Transform, Renderable, PointLight, Physics]
-    component_sets = [
-        frozenset((Transform,)), frozenset((Transform, Renderable)), frozenset((Transform, PointLight)),
-        frozenset((Transform, Physics)), frozenset((Transform, Renderable, PointLight)),
-        frozenset((Transform, Renderable, Physics)), frozenset((Transform, PointLight, Physics)),
-        frozenset((Transform, Renderable, PointLight, Physics))
-    ]
-
 
     def __init__(self):
-        self.data = [ComponentSetArray(*component_set) for component_set in World.component_sets]
+        self.registered_components = [Transform, Renderable, PointLight, Physics]
+        # TODO(ted): Should be dynamic and using a bitmask.
+        self.component_sets = [
+            frozenset((Transform,)), frozenset((Transform, Renderable)), frozenset((Transform, PointLight)),
+            frozenset((Transform, Physics)), frozenset((Transform, Renderable, PointLight)),
+            frozenset((Transform, Renderable, Physics)), frozenset((Transform, PointLight, Physics)),
+            frozenset((Transform, Renderable, PointLight, Physics))
+        ]
+
+        # TODO(ted): Make it possible for user to set ComponentSetStorage.
+        # TODO(ted): Don't create an entry for every possible combination. Use an hash table and create one when
+        # necessary. Delete entries that are not used.
+        self.data = [ComponentSetStorage(*component_set) for component_set in self.component_sets]
+
+    def register_component(self, Component, Storage=ComponentSetStorage):
+        self.registered_components.append(Component)
+        self.data.append(Storage(Component))
 
     def create_entity(self):
         entity = Entity(frozenset(), 0)
@@ -197,7 +205,7 @@ class World:
         component_set_arrays = []
 
         component_target = frozenset(Components)
-        for index, component_set in enumerate(World.component_sets):
+        for index, component_set in enumerate(self.component_sets):
             if component_target.intersection(component_set) == component_target:
                 component_set_arrays.append(self.data[index])
 
@@ -217,14 +225,14 @@ class World:
         # Remove
         previous_components = []
         if entity.component_set:
-            set_array_index = World.component_sets.index(entity.component_set)
+            set_array_index = self.component_sets.index(entity.component_set)
             set_array = self.data[set_array_index]
             previous_components = set_array.get(entity.index)
             set_array.destroy(entity.index)
 
         # Create
         entity.component_set = entity.component_set.union(frozenset((Component,)))  # Union
-        set_array_index = World.component_sets.index(entity.component_set)
+        set_array_index = self.component_sets.index(entity.component_set)
         set_array = self.data[set_array_index]
         entity.index = set_array.create()
         for component in previous_components:
@@ -236,7 +244,7 @@ class World:
         # Remove
         previous_components = []
         if entity.component_set:
-            set_array_index = World.component_sets.index(entity.component_set)
+            set_array_index = self.component_sets.index(entity.component_set)
             set_array = self.data[set_array_index]
             previous_components = set_array.get(entity.index)
             set_array.destroy(entity.index)
@@ -246,7 +254,7 @@ class World:
 
         # Create
         entity.component_set = entity.component_set.difference(frozenset((Component, )))  # Difference, not union.
-        set_array_index = World.component_sets.index(entity.component_set)
+        set_array_index = self.component_sets.index(entity.component_set)
         set_array = self.data[set_array_index]
         entity.index = set_array.create()
         for component in previous_components:
